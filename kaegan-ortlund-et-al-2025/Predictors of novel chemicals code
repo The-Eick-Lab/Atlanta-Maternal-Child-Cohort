@@ -1,0 +1,2370 @@
+---
+title: "Predictors of novel chemicals cleaned code"
+author: "Kaegan Ortlund et al"
+date: "2025-11-05"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{css, echo=FALSE}
+h2 {
+   text-align: center;
+}
+
+pre {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 400px;
+}
+
+.scroll-400 {
+  max-height: 100px;
+  overflow-y: auto;
+  background-color: inherit;
+}
+
+
+
+
+```
+
+
+## Setup
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Load Packages 
+
+library(readxl)
+library(tidyverse)
+library(flextable)
+library(gtsummary)
+library(broom)
+library(pals)
+library(corrplot)
+library(kohonen)
+library(lubridate)
+library(splines)
+library(haven)
+library(tidyLPA)
+library(mclust)
+library(reshape2)
+library(cowplot)
+library(forcats)
+library(rmdformats)
+library(extrafont)
+library(logbin)
+```
+
+```{r include = FALSE, warning = FALSE, message = FALSE}
+#### Build labels for tables and plots
+
+# full chemicals label
+chemical_label <- c("∑ LMW", "monoethyl phthalate (MEP)", "mono-isobutyl phthalate + mono-n-butyl phthalate (MiBP/MnBP)","∑ HMW", "mono(3-carboxypropyl) phthalate (MCPP)", "monobenzyl phthalate (MBzP)", "mono (carboxyisononyl) (MCiNP)", "mono (7-carboxyheptyl) phthalate (MCHpP)", "∑ DEHP", "mono(2-ethyl-5-oxohexyl) phthalate (MEOHP)", "mono(2-ethyl-5-hydroxyhexyl) phthalate (MEHHP)", "mono(2-ethyl-5-carboxypentyl) phthalate (MECPP)", "mono-2-(carboxymethyl) hexyl phthalate (MCMHP)", "∑ DINCH","mono hydroxyisononyl ester (MHNCH)", "cyclohexane-1,2-dicarboxylic acid mono(oxo-isononyl) ester (MONCH)", "cyclohexane-1,2-dicarboxylic acid mono carboxyisooctyl ester (MCOCH)", "∑ DINP","mono(carboxyisoctyl) phthalate (MCiOP)", "∑ DPHP", "mono-2-(propyl-6-oxoheptyl) phthalate (MPOHP)","mono-2-(propyl-6-carboxy-hexyl) phthalate (MPCHP)", "∑ Organophosphorus flame retardants", "diphenyl phosphate (DPHP)", "bis(1,3-dichloro-2-propyl) phosphate (BDCPP)", "∑ Pyrethroids", "3-phenoxybenzoic acid (PBA)", "trans-3(2,2-dichlorovinyl)-2,2-dimethylcyclopropane carboxylic acid (TDCCA)","∑ Parabens", "ethyl paraben (EPB)", "propyl paraben (PrPB)", "methyl paraben (MPB)", "∑ Benzophenones", "benzophenone-1 (BP1)", "benzophenone-3 (BP3)","∑ Bisphenols", "bisphenol S (BPS)", "∑ Halogenated phenols", "pentachlorophenol (PCP)","∑ Insceticides", "3,5,6-trichloro-pyridinol (TCPY)","∑ Bactericides", "triclocarban (TCC)", "triclosan (TCS)", "∑ Fungicides and Herbicides", "2,4-dichlorophenoxtacetic acid (24D)","∑ Polycyclic aromatic hydrocarbons", "1-hydroxypyrene (PYR1)", "1-hydroxynaphthalene (NAP1)", "2-hydroxynaphthalene (NAP2)", "sum of nap1 and nap9 (PHEN1/PHEN9)")
+
+names(chemical_label) <- c("Sum_LMW_sg","MEP_sg", "MIBP_MNBP_sg", "Sum_HMW_sg", "MCPP_sg", "MBZP_sg", "MCINP_sg", "MCHPP_sg", "sum_DEHP_sg", "MEOHP_sg", "MEHHP_sg", "MECPP_sg","MCMHP_sg", "sum_DINCH_sg","MHNCH_sg", "MONCH_sg", "MCOCH_sg", "sum_DINP_sg","MCIOP_sg", "sum_DPHP_P_sg", "MPOHP_sg","MPCHP_sg", "Sum_OrganophosphorusFRs_sg", "DPHP_sg", "BDCPP_sg","Sum_Pyrethroids_sg", "PBA_sg", "TDCCA_sg","Sum_Parabens_sg", "ETPB_sg", "PRPB_sg", "MEPB_sg", "Sum_Benzophenones_sg", "BP1_sg", "BP3_sg","Sum_Bisphenols_sg", "BPS_sg","Sum_HalogenatedPhenols_sg", "PCP_sg","Sum_OtherInsecticides_sg", "TCP_sg","Sum_Bactericides_sg", "TCC_sg", "TCS_sg","Sum_FungicidesHerbicides_sg", "D24_sg", "Sum_PAHs_sg", "PYR1_sg", "NAP1_sg", "NAP2_sg", "PHEN1_PHEN9_sg")
+
+## log chemicals  
+chemical_sum_log_label <- c("∑ LMW phthalates", "∑ HMW phthalates", "∑ DEHP", "∑ DINCH", "mono (carboxyisocty) phthalate", "∑ DPHP", "∑ Organophosphorus flame retardants", "∑ Pyrethroids", "∑ Parabens", "∑ Benzophenones","bisphenols S", "pentachlorophenol", "3,5,6-trichloro-pyridinol", "∑ Bactericides", "2,4−dichlorophenoxacetic acid", "∑ Polycyclic aromatic hydrocarbons")
+
+names(chemical_sum_log_label) <- c("Sum_LMW_sg_log","Sum_HMW_sg_log", "sum_DEHP_sg_log", "sum_DINCH_sg_log", "sum_DINP_sg_log", "sum_DPHP_P_sg_log", "Sum_OrganophosphorusFRs_sg_log", "Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log", "Sum_Bactericides_sg_log" ,"Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log")
+
+# Latent Profile Analysis
+chemical_sum_log_label_lpa <- c("∑ LMW phthalates", "∑ HMW phthalates", "∑ DINCH","∑ Organophosphorus flame retardants", "∑ Pyrethroids", "∑ Parabens", "∑ Benzophenones","bisphenols S", "pentachlorophenol", "3,5,6-trichloro-pyridinol", "∑ Bactericides", "2,4−dichlorophenoxacetic acid", "∑ Polycyclic aromatic hydrocarbons")
+names(chemical_sum_log_label_lpa) <- c("Sum_LMW_sg_log","Sum_HMW_sg_log", "sum_DINCH_sg_log", "Sum_OrganophosphorusFRs_sg_log", "Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log", "Sum_Bactericides_sg_log" ,"Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log")
+
+# class labels 
+class_label <- c("Class 1", "Class 2")
+names(class_label) <- c("class_1", "class_2")
+
+# season label 
+season_label <- c("", "Winter", "", "", "Fall", "", "", "Spring", "", "", "Summer", "")
+names(season_label) <- c("12", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
+
+# predictors label (demogrpahics, home behavior, time)
+demo_label <- c("2017", "2018",  "Spring", "Summer", "Fall", "Single", "< College degree", "Medicaid", "≥ 10 years old", "Single family home", "Apartment", "Pesticide use", "Cosmetic use", "Sunscreen use", "Women cleans home")
+names(demo_label) <- c("year_20171", "year_20181",  "spring1", "summer1", "fall1", "single1", "educ_nodegree1", "public1", "home_old1", "single_family_home1", "apartment1", "pesticide_use1", "cosmetic_use1", "sunscreen_use1", "you_clean_home1")
+```
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Set plot themes
+
+theme_set(theme_bw() +
+  theme(title = element_text(size = 20, color = "grey10"),
+        axis.title.x = element_text(size = 20, color = "grey10"),
+        axis.title.y = element_text(size = 20, color = "grey10"),
+        axis.text.x = element_text(size = 20, color = "grey10"),
+        axis.text.y = element_text(size = 20, color = "grey10"),
+        plot.title = element_text(size = 15, hjust = 0.5),
+        panel.grid = element_blank(),
+        strip.text = element_text(size = 20, color = "grey10"),
+        strip.background = element_blank(), 
+        legend.title = element_blank(),
+        legend.position = "bottom",
+        legend.text = element_text(size = 20, color = "grey10"))) 
+```
+
+## Descriptive statistics
+
+### Table S1
+
+Detection frequencies. 
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Capture detection frequencies
+
+# calculate % above LOD
+lod_table <- mcma %>%
+  dplyr::select(PA_CC, MMP_CC, MEP_CC, MIBP_MNBP_CC, MPEP_CC, MHXP_CC, 
+                MCPP_CC, MBZP_CC, MHPP_CC, MOP_CC, MEHP_CC, MEOHP_CC, 
+                MEHHP_CC, MIDP_CC, MCIOP_CC, MCINP_CC, MHIDP_CC, MHINP_CC, 
+                MHNCH_CC, MONCH_CC, MPOHP_CC, MPHHP_CC, MCOCH_CC, MPCHP_CC,
+                METP_CC, MTBTP_CC, MBZTP_CC, DBUP_DIBP_CC, DPHP_CC, CINA6_CC,
+                TCP_CC, PBA_CC, FPBA_CC, T245_CC, MPRP_CC, MIPP_CC, MECPP_CC,
+                MCMHP_CC, MCHPP_CC, TDCCA_CC, CDCCA_CC, BMPP_CC, BDCPP_CC,
+                MEPB_CC, ETPB_CC, PRPB_CC, BuPB_CC, BZPB_CC, HEPB_CC, BP1_CC,
+                BP2_CC, BP3_CC, BP6_CC, BP8_CC, OH4BP_CC, BPA_CC, BPF_CC, 
+                BPS_CC, BPB_CC, BPZ_CC, BPAP_CC, BPAF_CC, BPP_CC, TCP245_TCP246_CC,
+                TECP2356_CC, TECP2346_CC, TECP2345_CC, PCP_CC, TCC_CC, TCS_CC,
+                TCBPA335_CC, TECBPA2266_CC, TBBPA3355_CC, FLUO2_3_9_CC, PYR1_CC, 
+                SUF_CC, PNP_CC, D24_CC, NAP1_CC, NAP2_CC, PHEN2_PHEN3_CC, 
+                PHEN1_PHEN9_CC, PHEN4_CC, TEP_CC, TNBP_TIBP_CC, TCEP_CC, 
+                TPP_CC, TPHP_CC, TBOEP_CC, BADGE_CC, BADGEH2O_CC, BADGE2H2O_CC,
+                NIT_CC, THX_CC, IMI_CC, ACE_CC, THI_CC, CLO_CC, FLNC_CC, NDMT_CC, 
+                NDMA_CC, TA_CC, IMZ_CC, PYRM_CC, DINF_CC, METB_CC, ATZ_CC, 
+                CYP_CC, MET_CC, TBZ_CC, PRPCN_CC, TETZ_CC, AZO_CC) %>%
+summarise(across(everything(), ~ round(100 * sum(.x != 37, na.rm = TRUE) / length(.x), 0))) %>% 
+            pivot_longer(cols = everything(), names_to = "Analyte", values_to = "Percentage Above Limit of Detection") 
+
+lod_table$Analyte <- str_sub(lod_table$Analyte,0, -4)
+
+# assign chemical to class
+lod_table$Group <- case_when(
+  lod_table$Analyte %in% c("MEP", "MIBP_MNBP", "MMP", "MIPP") ~ "Low molecular weight phthalates",
+  lod_table$Analyte %in% c("MPHHP", "MOP", "MPRP", "MHIDP", "MCPP", "MCHPP", "MHPP", "MBZP_MNBP","MBZP", "MCINP", "MHXP", "MIDP", "MPEP") ~ "High molecular weight phthalates",
+  lod_table$Analyte %in% c("MEHHP", "MEHP", "MEOHP", "MCMHP", "MECPP") ~ "DEHP",
+  lod_table$Analyte %in% c("MPCHP","MPOHP") ~ "DPHP",
+  lod_table$Analyte %in% c("MHINP", "MCIOP") ~ "DINP",
+  lod_table$Analyte %in% c("MCOCH", "MHNCH", "MONCH") ~ "DINCH",
+  lod_table$Analyte %in% c("PA", "MBZTP", "MTBTP", "METP") ~ "Alternative plasticizers",
+  lod_table$Analyte %in% c("BDCPP", "DBUP_DIBP", "TNBP_TIBP", "DPHP", "TEP", "TPHP", "TPP", "TBOEP", "TCEP", "BMPP") ~ "Organophosphorus flame retardants",
+  lod_table$Analyte %in% c("PBA", "FPBA", "CDCCA", "TDCCA") ~ "Pyrethroids",
+  lod_table$Analyte %in% c("BZPB", "HEPB", "PRPB", "BuPB", "ETPB", "MEPB") ~ "Parabens",
+  lod_table$Analyte %in% c("OH4BP", "BP1", "BP2", "BP3", "BP6", "BP8") ~ "Benzophenones",
+  lod_table$Analyte %in% c("BPA", "BPB", "BADGEH2O", "BADGE2H2O", "BADGE", "BPAF", "BPAP", "BPP", "BPF", "BPS", "BPZ", "TECBPA2266", "TCBPA335", "TBBPA3355") ~ "Bisphenols",
+  lod_table$Analyte %in% c("TCC", "TCS") ~ "Bactericides",
+  lod_table$Analyte %in% c("TECP2345","TECP2346", "TECP2356", "TCP245_TCP246", "PCP") ~ "Halogenated phenols",
+  lod_table$Analyte %in% c("SUF", "TCP", "PNP") ~ "Insecticides",
+  lod_table$Analyte %in% c("T245","D24", "ATZ", "AZO", "CYP", "MET", "METB", "PRPCN", "PYRM", "TBZ", "TETZ") ~ "Fungicides + Herbicides",
+  lod_table$Analyte %in% c("CINA6", "ACE", "CLO", "DINF", "FLNC", "IMI", "IMZ", "NDMA", "NDMT", "NIT", "THI", "TA", "THX") ~ "Neonicotinoids",
+  lod_table$Analyte %in% c("PYR1", "NAP1", "NAP2", "PHEN2_PHEN3", "PHEN1_PHEN9", "PHEN4", "FLUO2_3_9") ~ "Polycyclic aromatic hydrocarbons")
+
+# factor
+chemical_order <- c(
+  "MEP", "MIBP_MNBP", "MMP", "MIPP",  
+  "MPHHP", "MOP", "MPRP", "MHIDP", "MCPP", "MCHPP", "MHPP", "MBZP_MNBP", "MBZP", "MCINP", 
+  "MHXP", "MIDP", "MPEP",  
+  "MEHHP", "MEHP", "MEOHP", "MCMHP", "MECPP",
+  "MPCHP", "MPOHP",
+  "MHINP", "MCIOP",
+  "MCOCH", "MHNCH", "MONCH",
+  "PA", "MBZTP", "MTBTP", "METP",
+  "BDCPP", "DBUP_DIBP", "TNBP_TIBP", "DPHP", "TEP", "TPHP", "TPP", "TBOEP", "TCEP", "BMPP",  
+  "PBA", "FPBA", "CDCCA", "TDCCA",
+  "BZPB", "HEPB", "PRPB", "BuPB", "ETPB", "MEPB",  
+  "OH4BP", "BP1", "BP2", "BP3", "BP6", "BP8",  
+  "BPA", "BPB", "BADGEH2O", "BADGE2H2O", "BADGE", "BPAF", "BPAP", "BPP", "BPF", "BPS", "BPZ", 
+  "TECBPA2266", "TCBPA335", "TBBPA3355",  
+  "TCC", "TCS",  
+  "TECP2345", "TECP2346", "TECP2356", "TCP245_TCP246", "PCP",  
+  "SUF", "TCP", "PNP",  
+  "T245", "D24", "ATZ", "AZO", "CYP", "MET", "METB", "PRPCN", "PYRM", "TBZ", "TETZ",  
+  "CINA6", "ACE", "CLO", "DINF", "FLNC", "IMI", "IMZ", "NDMA", "NDMT", "NIT", "THI", "TA", "THX",  
+  "PYR1", "NAP1", "NAP2", "PHEN2_PHEN3", "PHEN1_PHEN9", "PHEN4", "FLUO2_3_9"
+)
+
+lod_table$Analyte <- factor(lod_table$Analyte, levels = chemical_order, ordered = TRUE)
+
+group_order <- c(
+  "Low molecular weight phthalates", "High molecular weight phthalates","DEHP", "DINP", "DINCH", "DPHP", "Alternative plasticizers",
+  "Organophosphorus flame retardants", "Pyrethroids", "Parabens",
+  "Benzophenones", "Bisphenols", "Bactericides", "Halogenated phenols",
+  "Insecticides", "Fungicides + Herbicides", "Neonicotinoids",
+  "Polycyclic aromatic hydrocarbons")
+
+lod_table$Group <- factor(lod_table$Group, levels = group_order, ordered = TRUE)
+
+# table 
+lod_table %>%
+  arrange(Group, Analyte) %>%
+  as_grouped_data("Group") %>%
+  flextable() %>%
+  theme_booktabs() %>%
+  bg(i = ~ `Percentage Above Limit of Detection` > 70, bg = "lightblue1", part = "body") %>%
+  font(fontname = "Poppins", part = "all") %>%
+  autofit()
+```
+
+### Figure S1
+
+Spearman correlation coefficients reflecting correlations between natural log transformed, individual analytes (ng/mL) and molar sums (µM) of contemporary and emerging chemicals, measured in mid-pregnancy urine samples and corrected with specific gravity among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168).
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width = 15, fig.height=15, fig.align='center'}
+#### Correlation 
+
+# select variables
+novel_cor <- novel %>% dplyr::select(MEP_sg_log, MIBP_MNBP_sg_log, Sum_LMW_sg_log, MCPP_sg_log, MBZP_sg_log, MCINP_sg_log, MCHPP_sg_log, MEOHP_sg_log, MEHHP_sg_log, MECPP_sg_log, MCMHP_sg_log, MCIOP_sg_log, MPOHP_sg_log, MPCHP_sg_log, Sum_HMW_sg_log, sum_DEHP_sg_log, sum_DINP_sg_log, sum_DPHP_P_sg_log, MCOCH_sg_log, MHNCH_sg_log, MONCH_sg_log, sum_DINCH_sg, DPHP_sg_log, BDCPP_sg_log,Sum_OrganophosphorusFRs_sg_log, PBA_sg_log, TDCCA_sg_log,Sum_Pyrethroids_sg_log, ETPB_sg_log, PRPB_sg_log, MEPB_sg_log,Sum_Parabens_sg_log, BP1_sg_log, BP3_sg_log, Sum_Benzophenones_sg_log, BPS_sg_log, PCP_sg_log, TCP_sg_log, TCC_sg_log, TCS_sg_log, Sum_Bactericides_sg_log, D24_sg_log, PYR1_sg_log, NAP1_sg_log, NAP2_sg_log, PHEN1_PHEN9_sg_log, Sum_PAHs_sg_log) %>% drop_na() 
+
+# label
+colnames(novel_cor) <- c("MEP", "MiBP_MnBP","∑ LMW", "MCPP", "MBZP", "MCiNP", "MCHpP", "MEOHP", "MEHHP", "MECPP", "MCMHP","MCiOP", "MPOHP", "MPCHP","∑ HMW", "∑ DEHP","∑ DINP", "∑ DPHP","MHNCH", "MONCH", "MCOCH", "∑ DINCH", "DPHP", "BDCPP","∑ Organophosphorus FRs", "PBA", "TDCCA", "∑ Pyrethroids", "EPB", "PrPB", "MPB", "∑ Parabens", "BP1", "BP3",  "∑ Benzophenones", "BPS",  "PCP", "TCP", "TCC", "TCS", "∑ Bactericides", "D24", "PYR1", "NAP1", "NAP2", "PHEN1_PHEN9", "∑ PAHs")
+
+# correlation matrix
+c <- cor(novel_cor, method = "spearman")
+
+# plot
+corrplot(c, method = "color", cl.cex = 1, cl.pos = "r", tl.offset = 0.3, tl.col = "grey10", col = COL2('RdBu'))
+```
+
+### Figure S1
+
+Spearman correlation coefficients reflecting correlations between natural log transformed, individual analytes (ng/mL) and molar sums (µM) of contemporary and emerging chemicals, measured in mid-pregnancy urine samples and corrected with specific gravity among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168).
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width = 15, fig.height=15, fig.align='center'}
+#### Correlation 
+
+# select variables
+novel_cor <- novel %>% dplyr::select(MEP_sg_log, MIBP_MNBP_sg_log, Sum_LMW_sg_log, MCPP_sg_log, MBZP_sg_log, MCINP_sg_log, MCHPP_sg_log, MEOHP_sg_log, MEHHP_sg_log, MECPP_sg_log, MCMHP_sg_log, MCIOP_sg_log, MPOHP_sg_log, MPCHP_sg_log, Sum_HMW_sg_log, sum_DEHP_sg_log, sum_DINP_sg_log, sum_DPHP_P_sg_log, MCOCH_sg_log, MHNCH_sg_log, MONCH_sg_log, sum_DINCH_sg, DPHP_sg_log, BDCPP_sg_log,Sum_OrganophosphorusFRs_sg_log, PBA_sg_log, TDCCA_sg_log,Sum_Pyrethroids_sg_log, ETPB_sg_log, PRPB_sg_log, MEPB_sg_log,Sum_Parabens_sg_log, BP1_sg_log, BP3_sg_log, Sum_Benzophenones_sg_log, BPS_sg_log, PCP_sg_log, TCP_sg_log, TCC_sg_log, TCS_sg_log, Sum_Bactericides_sg_log, D24_sg_log, PYR1_sg_log, NAP1_sg_log, NAP2_sg_log, PHEN1_PHEN9_sg_log, Sum_PAHs_sg_log) %>% drop_na() 
+
+# label
+colnames(novel_cor) <- c("MEP", "MiBP_MnBP","∑ LMW", "MCPP", "MBZP", "MCiNP", "MCHpP", "MEOHP", "MEHHP", "MECPP", "MCMHP","MCiOP", "MPOHP", "MPCHP","∑ HMW", "∑ DEHP","∑ DINP", "∑ DPHP","MHNCH", "MONCH", "MCOCH", "∑ DINCH", "DPHP", "BDCPP","∑ Organophosphorus FRs", "PBA", "TDCCA", "∑ Pyrethroids", "EPB", "PrPB", "MPB", "∑ Parabens", "BP1", "BP3",  "∑ Benzophenones", "BPS",  "PCP", "TCP", "TCC", "TCS", "∑ Bactericides", "D24", "PYR1", "NAP1", "NAP2", "PHEN1_PHEN9", "∑ PAHs")
+
+# correlation matrix
+c <- cor(novel_cor, method = "spearman")
+
+# plot
+corrplot(c, method = "color", cl.cex = 1, cl.pos = "r", tl.offset = 0.3, tl.col = "grey10", col = COL2('RdBu'))
+```
+
+
+### Table 1
+
+Distributions of sociodemographic characteristics, home characteristics, and behavior patterns among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168).  
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Distribution of covariates, predictors
+
+# build function
+
+dist_table_demo <- function(df){
+
+table <- df %>%
+  mutate(marital_status = recode(marital_status,
+                       "1" = "Single",
+                       "0" = "Married or living with partner"),
+       parity = recode(parity,
+                       "0" = "No prior births",
+                       "1" = "1 or more prior births"),
+       maternal_education = recode(maternal_education,
+                        "0" = "< Some college",
+                        "1" = "≥ College degree"),
+       maternal_bmi_cat = recode(maternal_bmi_cat,
+                       "1" = "Underweight or normal",
+                       "2" = "Overweight",
+                       "3" = "Obese"),
+       substance_use = recode(substance_use, 
+                        "1" = "Yes",
+                        "0" = "No"),
+       insurance_type = recode(insurance_type,
+                        "0" = "Medicaid",
+                        "1" = "Private"),
+       type_home1 = recode(type_home1,
+                           "1" = "Single family home",
+                           "2" = "Multi family home",
+                           "3" = "Apartment"),
+       age_home1 = recode(age_home1,
+                         "0" = "< 10 years old",
+                         "1" = "≥ 10 years old"),
+       pesticide_use = recode(pesticide_use,
+                          "0" = "No",
+                          "1" = "Yes"),
+       cosmetic_use = recode(cosmetic_use,
+                          "0" = "No",
+                          "1" = "Yes"),
+       sunscreen_use = recode(sunscreen_use,
+                          "0" = "No",
+                          "1" = "Yes"),
+      you_clean_home = recode(you_clean_home,
+                            "0" = "No",
+                            "1" = "Yes")) %>% 
+dplyr::select(maternal_age, maternal_education, marital_status, maternal_bmi_cat, insurance_type, parity, prenatal_site, substance_use, visit2_year, season, age_home1, type_home1, you_clean_home, pesticide_use, cosmetic_use, sunscreen_use, you_clean_home) %>%
+   rename("Age" = maternal_age, 
+          "Education" = maternal_education,
+          "Marital Status" = marital_status,
+          "Early pregnancy BMI" = maternal_bmi_cat,
+          "Insurance Type" = insurance_type,
+          "Parity" = parity,
+          "Delivery hospital" = prenatal_site,
+          "Any Substance Use" = substance_use,
+          "Year of sample collection" = visit2_year,
+          "Season of sample collection" = season,
+          "Age of Home" = age_home1,
+          "Type of Home" = type_home1,
+          "Pesticide Use" = pesticide_use,
+          "Cosmetic Use" = cosmetic_use, 
+          "Women cleans home" = you_clean_home,
+          "Sunscreen Use" = sunscreen_use)
+
+tbl_summary(table, type = all_dichotomous() ~ "categorical", missing_text = "Missing") %>% modify_header(label = "**Sociodemographic**")
+
+}
+
+# run function  
+dist_table_demo(df = novel)
+```
+
+### Table S5
+
+Distributions of sociodemographic characteristics, home characteristics, and behavior patterns among pregnant women in our analytic sample (N=168) compared to the larger Atlanta Maternal Child Cohort (N=709).  
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Distribution of covariates, predictors in full cohort
+
+## Demographics
+
+# format 
+table_s5a <- atl_covar_full %>%
+  mutate(MarriedCohab_Not = recode(MarriedCohab_Not,
+                       "1" = "Single",
+                       "0" = "Married or living with partner"),
+       Parity_2cat = recode(Parity_2cat,
+                       "0" = "No prior births",
+                       "1" = "1 or more prior births"),
+       Education_2.level = recode(Education_2.level,
+                        "0" = "< Some college",
+                        "1" = "≥ College degree"),
+       FirstPrenatalBMI_Cat = recode(FirstPrenatalBMI_Cat,
+                       "1" = "Underweight or normal",
+                       "2" = "Overweight",
+                       "3" = "Obese"),
+       substance_use = recode(substance_use, 
+                        "1" = "Yes",
+                        "0" = "No"),
+       PresInsurance_3.level = recode(PresInsurance_3.level,
+                        "0" = "Medicaid",
+                        "1" = "Private")) %>% 
+dplyr::select(age_enrollment, Education_2.level, MarriedCohab_Not, FirstPrenatalBMI_Cat, PresInsurance_3.level, Parity_2cat, Site_Prenatal, substance_use) %>%
+   rename("Age" = age_enrollment, 
+          "Education" = Education_2.level,
+          "Marital Status" = MarriedCohab_Not,
+          "Early pregnancy BMI" = FirstPrenatalBMI_Cat,
+          "Insurance Type" = PresInsurance_3.level,
+          "Parity" = Parity_2cat,
+          "Delivery hospital" = Site_Prenatal,
+          "Any Substance Use" = substance_use)
+
+# table
+tbl_summary(table_s5a, type = all_dichotomous() ~ "categorical", missing_text = "Missing") %>% modify_header(label = "**Sociodemographic**")
+
+## Home behavior and characteristics
+
+# format 
+table_s5b <- atl_home_full %>%
+  mutate(type_home1 = recode(type_home1,
+                           "1" = "Single family home",
+                           "2" = "Multi family home",
+                           "3" = "Apartment"),
+       age_home1 = recode(age_home1,
+                         "0" = "< 10 years old",
+                         "1" = "≥ 10 years old"),
+       pesticide_use = recode(pesticide_use,
+                          "0" = "No",
+                          "1" = "Yes"),
+       cosmetic_use = recode(cosmetic_use,
+                          "0" = "No",
+                          "1" = "Yes"),
+       sunscreen_use = recode(sunscreen_use,
+                          "0" = "No",
+                          "1" = "Yes"),
+       you_clean_home = recode(you_clean_home,
+                            "0" = "No",
+                            "1" = "Yes")) %>% 
+dplyr::select(type_home1, age_home1, pesticide_use, cosmetic_use, sunscreen_use, you_clean_home) %>%
+     rename("Age of Home" = age_home1,
+          "Type of Home" = type_home1,
+          "Pesticide Use" = pesticide_use,
+          "Cosmetic Use" = cosmetic_use, 
+          "Women cleans home" = you_clean_home,
+          "Sunscreen Use" = sunscreen_use)
+
+# table
+tbl_summary(table_s5b, type = all_dichotomous() ~ "categorical", missing_text = "Missing") %>% modify_header(label = "**Sociodemographic**")
+
+
+```
+
+
+## Analyte distributions {.tabset}
+
+### Figure 1
+
+Distributions of natural log transformed, individual analytes (ng/mL) and molar sums (µM) of understudied chemicals of concern measured in mid-pregnancy urine samples and corrected with specific gravity among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168).
+
+Note: Five chemicals were the only well detected analyte in their chemical group, and as such are presented individually. This includes the pentachlorophenol (halogenated phenol), 2,4-dichlorophenoxtace (fungicide and herbicide), bisphenol S (bisphenol), 3,5,6-trichloro-pyridinol (insecticide), and mono (carboxyisoctyl) phthalate (di-2-ethylhexyl metabolites (diisononyl phthalate metabolites (DINP)). 
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width=20, fig.height=15, fig.align='center'}
+#### Distributions of molar sums
+
+# pivot the data into long format
+novel_box <- novel %>% 
+  pivot_longer(cols = c("Sum_LMW_sg_log","Sum_HMW_sg_log", "sum_DEHP_sg_log","sum_DINP_sg_log", "sum_DINCH_sg_log", "sum_DPHP_P_sg_log", "Sum_OrganophosphorusFRs_sg_log","Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log","Sum_Bactericides_sg_log","Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log"), 
+               names_to = "Chemical", 
+               values_to = "Concentration") %>%
+  dplyr::select(Chemical, Concentration)
+
+# factor
+novel_box$Chemical <- factor(novel_box$Chemical, 
+                              levels = c("Sum_LMW_sg_log","Sum_HMW_sg_log", "sum_DEHP_sg_log","sum_DINP_sg_log", "sum_DINCH_sg_log", "sum_DPHP_P_sg_log", "Sum_OrganophosphorusFRs_sg_log","Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log","Sum_Bactericides_sg_log","Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log")) 
+
+# plot
+ggplot(novel_box, aes(x = fct_reorder(Chemical, Concentration),y = Concentration)) + 
+  geom_boxplot() +  
+  labs(x = "Analyte", y = "Concentration log(umol/L or ng/mL)") + 
+  theme(axis.text.x = element_text(size = 20, angle = 45, hjust = 1, color = "grey10")) +
+  scale_x_discrete(label = chemical_sum_log_label) + 
+  scale_y_continuous(limits = c(-5, 10),  breaks = c(-5, 0, 5, 10)) + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none",
+        plot.margin = margin(10, 10, 10, 100),
+                         theme(title = element_text(size = 20, color = "grey10"),
+        axis.title.x = element_text(size = 25, color = "grey10"),
+        axis.title.y = element_text(size = 25, color = "grey10"),
+        axis.text.x = element_text(size = 25, color = "grey10"),
+        axis.text.y = element_text(size = 25, color = "grey10")))
+
+```
+
+### Figure 2 
+
+Distributions of natural log transformed, individual analytes (ng/mL) of  contemporary and emerging chemicals measured in mid-pregnancy urine samples and corrected with specific gravity among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N =168), as compared to African American reproductive age women using the 2015-2016 cycle of the US Nation Health and Nutrition Examination Survey (NHANES). 
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width=30, fig.height= 15, fig.align='center'}
+#### Compare anlaytes to NHANES  (if available)
+
+## NHANES data: read 2016-2017 data files
+
+oFRS <-  read_xpt("SSFR_I.xpt")
+pcare <- read_xpt("EPHPP_I.xpt")
+pah <- read_xpt("PAH_I.xpt")
+phth <- read_xpt("PHTHTE_I.xpt")
+fung_pyth <- read_xpt("UPHOPM_I.xpt")
+demo <- read_xpt("DEMO_I.xpt")
+demo <- demo %>%
+         filter(RIAGENDR == 2, RIDRETH1 == 4, RIDAGEYR >= 15, RIDAGEYR <= 49)
+  
+# parabens, bactericides, bisphenols
+pcare <- inner_join(demo, pcare, by = "SEQN") 
+
+pcare <- pcare %>%
+  rename(BP3_sg_log = URXBP3, 
+         BPS_sg_log = URXBPS,
+         TCC_sg_log = URXTLC,
+         TCS_sg_log = URXTRS,
+         ETPB_sg_log = URXEPB,
+         PRPB_sg_log = URXPPB,
+         MEPB_sg_log = URXMPB) %>% 
+  pivot_longer(cols = c("BP3_sg_log", "BPS_sg_log", "TCC_sg_log", "TCS_sg_log", "ETPB_sg_log", "PRPB_sg_log", "MEPB_sg_log"), 
+               names_to = "Chemical", 
+               values_to = "Concentration") %>%
+  dplyr::select(Chemical, Concentration) %>%
+  mutate(data = "NHANES", year = "2016") 
+
+pcare$Concentration <- log(pcare$Concentration)
+
+# organophosperus flame retardants
+oFRS <- inner_join(demo, oFRS, by = "SEQN") 
+
+oFRS <- oFRS %>%
+  rename(DPHP_sg_log = SSDPHP,
+         BDCPP_sg_log = SSBDCPP) %>% 
+  pivot_longer(cols = c("DPHP_sg_log", "BDCPP_sg_log"),
+               names_to = "Chemical", 
+               values_to = "Concentration") %>%
+  dplyr::select(Chemical, Concentration) %>%
+  mutate(data = "NHANES", year = "2016") 
+
+oFRS$Concentration <- log(oFRS$Concentration)
+
+# polycyclic aromatic hydrocarbons
+pah <- inner_join(demo, pah, by = "SEQN") 
+pah <- pah %>%
+  rename(PYR1_sg_log = URXP10,
+         NAP1_sg_log = URXP01,
+         NAP2_sg_log = URXP02) %>% 
+  mutate(PYR1_sg_log = PYR1_sg_log/1000, 
+         NAP1_sg_log = NAP1_sg_log/1000,
+         NAP2_sg_log = NAP2_sg_log/1000) %>%
+  pivot_longer(cols = c("PYR1_sg_log", "NAP1_sg_log", "NAP2_sg_log"),
+               names_to = "Chemical", 
+               values_to = "Concentration") %>%
+  dplyr::select(Chemical, Concentration) %>%
+  mutate(data = "NHANES", year = "2016") 
+
+pah$Concentration <- log(pah$Concentration)
+
+# fungicides and herbicides
+fung_pyth <- inner_join(demo, fung_pyth, by = "SEQN") 
+
+fung_pyth <- fung_pyth %>%
+  rename(D24_sg_log = URX24D,
+         TCP_sg_log = URXCPM,
+         PBA_sg_log = URXOPM,
+         TDCCA_sg_log = URXTCC) %>% 
+  pivot_longer(cols = c("D24_sg_log", "TCP_sg_log", "PBA_sg_log", "TDCCA_sg_log"),
+               names_to = "Chemical", 
+               values_to = "Concentration") %>%
+  dplyr::select(Chemical, Concentration) %>%
+  mutate(data = "NHANES", year = "2016") 
+
+fung_pyth$Concentration <- log(fung_pyth$Concentration)
+
+# phthalates
+phth <- inner_join(demo, phth , by = "SEQN") 
+
+
+phth  <- phth  %>%
+  rename(MEP_sg_log = URXMEP,
+         MEHP_sg_log =  URXMHP,
+         MCOCH_sg_log = URXMCOH,
+         MEHHP_sg_log = URXMHH, 
+         MEOHP_sg_log = URXMOH,
+         MCPP_sg_log = URXMC1,
+         MBZP_sg_log = URXMZP,
+         MCIOP_sg_log = URXCOP, 
+         MCINP_sg_log = URXCNP, 
+         MECPP_sg_log = URXECP,
+         MHNCH_sg_log = URXMHNC) %>% 
+  pivot_longer(cols = c("MEP_sg_log", "MEHP_sg_log", "MCOCH_sg_log", "MEHHP_sg_log", "MEOHP_sg_log", "MCPP_sg_log", "MBZP_sg_log", "MCIOP_sg_log", "MCINP_sg_log", "MECPP_sg_log", "MHNCH_sg_log"),
+               names_to = "Chemical", 
+               values_to = "Concentration") %>%
+  dplyr::select(Chemical, Concentration) %>%
+  mutate(data = "NHANES", year = "2016") 
+
+phth$Concentration <- log(phth$Concentration)
+
+## Analyte data
+# pivot longer
+novel_nhanes <- novel %>% 
+  pivot_longer(cols = ends_with("_log"), 
+               names_to = "Chemical", 
+               values_to = "Concentration") %>%
+  dplyr::select(Chemical, Concentration)
+
+# filter for chemicals in NHANES
+novel_nhanes <- novel_nhanes  %>%
+  filter(Chemical %in% c("MEP_sg_log","MEHP_sg_log", "MEHHP_sg_log", "MCOCH_sg_log","MCPP_sg_log", "MBZP_sg_log", "MECPP_sg_log", "MEOHP_sg_log", "MCIOP_sg_log", "MCINP_sg_log","MHNCH_sg_log", "DPHP_sg_log","BDCPP_sg_log" ,"PBA_sg_log", "TDCCA_sg_log", "ETPB_sg_log", "PRPB_sg_log","MEPB_sg_log", "BP3_sg_log", "BPS_sg_log", "TCP_sg_log", "TCC_sg_log", "TCS_sg_log", "D24_sg_log", "PYR1_sg_log", "NAP1_sg_log", "NAP2_sg_log")) %>%
+    mutate(data = "Analytic Sample", year = "2016") 
+
+
+       
+# bind together NHANES annd analyte data 
+boxplot_comp <- rbind(novel_nhanes, pcare, oFRS, pah, phth, fung_pyth)
+boxplot_comp$Chemical <- str_sub(boxplot_comp$Chemical, 1, -8)
+boxplot_comp$Chemical <- boxplot_comp$Chemical %>% factor(levels = c("MEP","MEHP", "MEHHP", "MCOCH",  "MCPP", "MBZP","MECPP", "MEOHP",  "MCIOP","MCINP", "MHNCH", "DPHP","BDCPP", "PBA", "TDCCA", "ETPB", "PRPB", "MEPB", "BP3", "BPS", "TCP", "TCC", "TCS", "D24", "PYR1", "NAP1", "NAP2"))
+
+
+# plot
+
+ggplot(boxplot_comp, aes(x = Chemical, y = Concentration, fill = data)) + 
+  geom_boxplot() + 
+  labs(y = "Concentration log(ng/mL)", x = "Analyte") +
+  scale_fill_manual(values = c("skyblue", "grey78")) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+    axis.text.x = element_text(size = 20, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 20),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 20),
+    title = element_text(size = 20),
+    legend.position = "bottom",
+    legend.text = element_text(size = 22),
+    legend.key.size = unit(2.5, "cm"),
+    plot.margin = margin(10, 10, 10, 100)
+  ) +
+  scale_y_continuous(limits = c(-5, 15), breaks = c(-5, 0, 5, 10, 15))
+  
+```
+
+### Table S6 
+
+Distributions of well-detected (> 70%) contemporary and emerging chemicals measured in mid-pregnancy urine samples and corrected with specific gravity among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168). Units for individual analytes are ng/mL and molar sums are µM.
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Distribution table
+
+# select variables
+table_s6 <- novel %>% dplyr::select(MEP_sg, MIBP_MNBP_sg, Sum_LMW_sg, MCPP_sg, MBZP_sg, MCINP_sg, MCHPP_sg, MEOHP_sg, MEHHP_sg, MECPP_sg, MCMHP_sg, MCIOP_sg,MPOHP_sg, MPCHP_sg, Sum_HMW_sg,sum_DEHP_sg, sum_DINP_sg, sum_DPHP_P_sg, MCOCH_sg, MHNCH_sg, MONCH_sg, sum_DINCH_sg, DPHP_sg, BDCPP_sg, Sum_OrganophosphorusFRs_sg, PBA_sg, TDCCA_sg,Sum_Pyrethroids_sg, ETPB_sg, PRPB_sg, MEPB_sg, Sum_Parabens_sg, BP1_sg, BP3_sg, Sum_Benzophenones_sg, BPS_sg, PCP_sg, TCP_sg, TCC_sg, TCS_sg,Sum_Bactericides_sg, D24_sg, PYR1_sg, NAP1_sg, NAP2_sg, PHEN1_PHEN9_sg, Sum_PAHs_sg)
+
+ 
+# build function to calculate summary measures: geometric mean, geometric sd, min, med, max
+dist.func <- function(x) {
+  c(
+    N = sum(!is.na(x)), 
+    geomean = round(exp(mean(log(x), na.rm = TRUE)), 2),
+    geosd = round(exp(sd(log(x), na.rm = TRUE)), 2),      
+    min = round(min(x, na.rm = TRUE), 2),                
+    median = round(median(x, na.rm = TRUE), 2),           
+    max = round(max(x, na.rm = TRUE), 2)                 
+  )
+}
+
+# run function
+table_s6 <- as.data.frame(do.call(rbind, lapply(table_s6, dist.func)))
+
+# format
+table_s6 <- table_s6 %>% 
+  mutate(Analyte = rownames(table_s6)) %>%
+  mutate(Class = c("Low molecular weight phthalates", "Low molecular weight phthalates","Low molecular weight phthalates",
+                       "High molecular weight phthalates", "High molecular weight phthalates", "High molecular weight phthalates", 
+                       "High molecular weight phthalates", "High molecular weight phthalates", "High molecular weight phthalates", 
+                       "High molecular weight phthalates", "High molecular weight phthalates", "High molecular weight phthalates", 
+                       "High molecular weight phthalates", "High molecular weight phthalates", "High molecular weight phthalates", 
+                       "Di(2-ethylhexyl) phthalate metabolites (DEHP)", "DINP", "Di(2-propylheptyl) phthalate metabolites (DPHP)", 
+                       "1,2 Cyclohexane dicarboxylic acid diisononyl esters (DINCH)", "1,2 Cyclohexane dicarboxylic acid diisononyl esters (DINCH)", 
+                       "1,2 Cyclohexane dicarboxylic acid diisononyl esters (DINCH)", "1,2 Cyclohexane dicarboxylic acid diisononyl esters (DINCH)", 
+                       "Organophosphorus flame retardants", "Organophosphorus flame retardants", "Organophosphorus flame retardants",
+                       "Pyrethoids", "Pyrethoids", "Pyrethoids", 
+                       "Parabens", "Parabens", "Parabens", "Parabens",
+                       "Benzophenones","Benzophenones", "Benzophenones", 
+                       "Bishphenols",
+                       "Halogenated phenols", 
+                       "Insecticides",  
+                       "Bactericides", "Bactericides", "Bactericides",
+                       "Fungicides and Herbicides", 
+                       "Polycyclic aromatic hydrocarbons", "Polycyclic aromatic hydrocarbons", "Polycyclic aromatic hydrocarbons", 
+                       "Polycyclic aromatic hydrocarbons", "Polycyclic aromatic hydrocarbons"))
+
+# table
+table_s6 %>% 
+  mutate(geomean_sd = paste0(geomean, "(", geosd, ")")) %>%
+  mutate(Analyte = chemical_label[Analyte]) %>%
+  dplyr::select(Class, Analyte, N, geomean_sd, min, median, max) %>%
+  as_grouped_data("Class") %>%
+  flextable() %>%
+  set_header_labels(min = "Minimum", median = "Median", max = "Maximum", geomean_sd = "Geometric Mean (Geometric SD)") %>%
+  align(align = "left", j = c(1, 2), part = "body") %>%
+  align(align = "center", j = c(3, 4, 5, 6), part = "body") %>%
+  align(align = "center", j = c(3, 4, 5, 6), part = "head") %>%
+  bold(part = "head") %>%
+  hline(i = c(3, 19, 22, 25, 28, 31, 33, 36, 39, 41, 46), part = "body") %>%
+  theme_booktabs() %>%
+  autofit() 
+```
+
+## Time trends {.tabset}
+
+### Figure 3: Year
+
+Annual time trends reflecting the geometric average concentrations of individual analytes (ng/mL) and molar sums (µM) of  contemporary and emerging chemicals measured in mid-pregnancy urine samples and corrected with specific gravity among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168). Each point represents the geometric average concentration at year of sample collection with 95% Confidence intervals. 
+
+Note: Five chemicals were the only well detected analyte in their chemical group, and as such are presented individually. This includes the pentachlorophenol (halogenated phenol), 2,4-dichlorophenoxtace (fungicide and herbicide), bisphenol S (bisphenol), 3,5,6-trichloro-pyridinol (insecticide), and mono (carboxyisoctyl) phthalate (di-2-ethylhexyl metabolites (diisononyl phthalate metabolites (DINP)).
+
+```{r  class.output="scroll-400", warning = FALSE, message = FALSE, fig.width=20, fig.height= 15, fig.align='center'}
+#### Urinary concentrations by year of sample collection 
+
+## LMW
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_LMW_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    # calculate the mean and sd of the logged variable
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    # calculate geometric mean
+    geo_mean = exp(mean_log),
+    # calculate confidence interval for geometric meanno  
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+  
+# plot
+lmw <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  labs(y = "Average concentration (umol/L or ng/mL)") +
+  ggtitle("∑ Low molecular weight phthalates") + 
+ scale_y_continuous(limits = c(0, 350), breaks = c(0, 75, 150, 225, 300)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_text(size = 15))
+## HMW
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_HMW_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+
+# plot
+hmw <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("∑ High molecular weight phthalates") + 
+ scale_y_continuous(limits = c(0, 105), breaks = c(0, 25, 50, 75, 100)) +
+  theme( text = element_text(family = "Optima", color = "grey10"),
+         legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+## DEHP 
+# format
+line_plot <- novel %>% 
+dplyr::select(visit2_year, sum_DEHP_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+dehp <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("∑ DEHP") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+# DINP
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, sum_DINP_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+dinp <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("Mono(carboxyisocty) phthalate") +
+ scale_y_continuous(limits = c(0, 8), breaks = c(0, 2, 4, 6, 8)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+## DINCH
+# format 
+line_plot <- novel %>% 
+ dplyr::select(visit2_year, sum_DINCH_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+
+# plot
+dinch <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  labs(y = "Average concentration (umol/L or ng/mL)") +
+  ggtitle("∑ DINCH") + 
+ scale_y_continuous(limits = c(0, 3.3), breaks = c(0, 0.75, 1.5, 2.25, 3)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_text(size = 15)) 
+# DPHP
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, sum_DPHP_P_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+dphp <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("∑ DPHP") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+
+## Organophosphorus FRs
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_OrganophosphorusFRs_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+
+# plot
+organo <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("∑ Organophosphorus flame retardents") + 
+ scale_y_continuous(limits = c(0, 10), breaks = c(0, 2.5, 5, 7.5, 10)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(), 
+       axis.title.y = element_blank()) 
+## Pyrethroids
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_Pyrethroids_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+pyth <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("∑ Pyrethroids") + 
+ scale_y_continuous(limits = c(0, 3), breaks = c(0, 0.75, 1.5, 2.25, 3)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+## Parabens
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_Parabens_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+para <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  labs(y = "Average concentration (umol/L or ng/mL)") +
+  ggtitle("∑ Parabens") + 
+ scale_y_continuous(limits = c(0, 400), breaks = c(0, 100, 200, 300, 400)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_text(size = 15)) 
+## Benzophenones
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_Benzophenones_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+benzo <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("∑ Benzophenones") +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+
+## Bisphenols
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_Bisphenols_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+bisp <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("Bisphenol S") + 
+ scale_y_continuous(limits = c(0, 1.6), breaks = c(0, 0.4, 0.8, 1.2, 1.6)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+
+## Halogenated phenols
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_HalogenatedPhenols_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# format
+halo <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  ggtitle("Pentachlorophenol") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none",
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) 
+
+## Inscecticides
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_OtherInsecticides_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+ins <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  labs(x = "Year of sample collection", y = "Average concentration (umol/L or ng/mL)") +
+  ggtitle("3,5,6-trichloro-pyridinol") + 
+ scale_y_continuous(limits = c(0, 3), breaks = c(0, 0.75, 1.5, 2.25, 3)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.y = element_text(size = 15))
+
+## Bactericides
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_Bactericides_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+bac <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  labs(x = "Year of sample collection") +
+  ggtitle("∑ Bactericides") + 
+ scale_y_continuous(limits = c(0, 15), breaks = c(0, 3, 6, 9, 12)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none",
+       strip.text = element_text(size = 20, color = "grey20"),
+        axis.title.y = element_blank())
+
+## Fungicides + Herbicides
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_FungicidesHerbicides_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+fung <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  labs(x = "Year of sample collection") +
+  ggtitle("2,4-dichlorophenoxtacetic acid ") + 
+ scale_y_continuous(limits = c(0, 0.45), breaks = c(0, 0.1, 0.2, 0.3, 0.4)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none",
+       strip.text = element_text(size = 20, color = "grey20"),
+        axis.title.y = element_blank())
+
+## PAHs
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_year, Sum_PAHs_sg) %>% 
+  pivot_longer(cols = !visit2_year, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_year, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_year)
+# plot
+pah <- ggplot(line_plot, aes(x = as_factor(visit2_year), y = geo_mean, group = Chemical)) +
+    geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) +
+  labs(x = "Year of sample collection") +
+  ggtitle("∑ Polycyclic aromatic hydrocarbons") + 
+ scale_y_continuous(limits = c(0, 32), breaks = c(0, 8, 16, 24, 32)) +
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none",
+       strip.text = element_text(size = 20, color = "grey20"),
+       axis.title.y = element_blank())
+
+# arrange
+
+p_all<-plot_grid(lmw, hmw, dehp, dinp, dinch, dphp, organo, pyth, para, benzo, bisp, halo, ins, bac, fung, pah, 
+          nrow = 4, align = "v", scale = 0.95)
+
+
+
+
+```
+
+### Figure S2: Season
+
+Seasonal time trends reflecting the average concentrations of individual analytes (ng/mL) and molar sums (µM) of contemporary and emerging chemicals measured in mid-pregnancy urine samples and corrected with specific gravity among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168).  
+
+Note: Each point represents the geometric average concentration of month of sample collection with 95% confidence intervals. Seasons are indicated by shading (winter, blue: December, January, February, spring, green: March, April, May, summer, pink: June, July, August, fall, red: September October, November). Five chemicals were the only well detected analyte in their chemical group, and as such are presented individually. This includes the pentachlorophenol (halogenated phenol), 2,4-dichlorophenoxtace (fungicide and herbicide), bisphenol S (bisphenol), 3,5,6-trichloro-pyridinol (insecticide), and mono (carboxyisoctyl) phthalate (di-2-ethylhexyl metabolites (diisononyl phthalate metabolites (DINP)).
+
+```{r  class.output="scroll-400", warning = FALSE, message = FALSE, fig.width=20, fig.height= 15, fig.align='center'}
+#### Urinary analyte levels by season of sample collection 
+
+## LMW
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_LMW_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+lmw <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "lightpink", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "lightsalmon2", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +  scale_y_continuous(limits = c(0, 800), breaks = c(0, 200, 400, 600, 800)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  labs(y = "Average Concentration (umol/L or ng/mL)") +
+  ggtitle("∑ Low molecular weight phthalates") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_text(size = 15)) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+# HMW
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_HMW_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+hmw <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +  scale_y_continuous(limits = c(0, 160), breaks = c(0, 40, 80, 120, 160)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("∑ High molecular weight phthalates") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+
+## DEHP 
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, sum_DEHP_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+# plot
+dehp <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +  scale_y_continuous(limits = c(0, 80), breaks = c(0, 20, 40, 60, 80)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("∑ DEHP") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## DINP
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, sum_DINP_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+# plot
+dinp <-  ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) +
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +  scale_y_continuous(limits = c(0, 20), breaks = c(0, 5, 10, 15, 20)) +
+  geom_line( size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("Mono(carboxyisocty) phthalate") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## DINCH
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, sum_DINCH_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+dinch <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +  scale_y_continuous(limits = c(0, 10), breaks = c(0, 2.5, 5, 7.5, 10)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  labs(y = "Average Concentration (umol/L or ng/mL)") +
+  ggtitle("∑ DINCH") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_text(size = 15)) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## DPHP
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, sum_DPHP_P_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+dphp <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) +
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +  scale_y_continuous(limits = c(0, 8), breaks = c(0, 2, 4, 6, 8)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("∑ DPHP") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+
+## Organophosphorus FRs
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_OrganophosphorusFRs_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+organo <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("∑ Organophosphorus flame retardents (ng/mL)") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## Pyrethroids
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_Pyrethroids_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+# plot
+pyth <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+            geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  scale_y_continuous(limits = c(0, 5), breaks = c(1, 2, 3, 4, 5)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("∑ Pyrethroids") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## Parabens
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_Parabens_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month)
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+para <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+            geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  scale_y_continuous(limits = c(0, 800), breaks = c(0, 200, 400, 600, 800)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  labs(y = "Average concentration (umol/L or ng/mL)") + 
+  ggtitle("∑ Parabens") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_text(size = 15)) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## Benzophenones
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_Benzophenones_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+# plot
+benzo <-  ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+            geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+   scale_y_continuous(limits = c(0, 100), breaks = c(0, 25, 50, 75, 100)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("∑ Benzophenones") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+
+## Bisphenols
+
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_Bisphenols_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+# plot
+bisp <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+            geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+   scale_y_continuous(limits = c(0, 4), breaks = c(0, 1, 2, 3, 4)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("Bisphenol S") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+
+## Halogenated phenols
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_HalogenatedPhenols_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+halo <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) + 
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  ggtitle("Pentachlorophenol") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## Insecticides
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_OtherInsecticides_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+ins <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  labs(y = "Average Concentration (umol/L or ng/mL)", x = "Month of sample collection") +
+  ggtitle("3,5,6-trichloro-pyridinol") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none",
+       axis.title.y = element_text(size = 15)) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+
+## Bactericides
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_Bactericides_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+bac <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +   scale_y_continuous(limits = c(0, 80), breaks = c(0, 20, 40, 60, 80)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  labs(x = "Month of sample collection") +
+  ggtitle("∑ Bactericides") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## Fungicides + Herbicides
+# format
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_FungicidesHerbicides_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+# plot
+fung <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +   scale_y_continuous(limits = c(0, 0.8), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  labs(x = "Month of sample collection") +
+  ggtitle("2,4-dichlorophenoxtacetic acid") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.y = element_blank()) +
+     scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = ""))
+
+## PAHs
+# format 
+line_plot <- novel %>% 
+  dplyr::select(visit2_month, Sum_PAHs_sg) %>% 
+  pivot_longer(cols = !visit2_month, names_to = "Chemical", values_to = "Concentration") %>%
+  group_by(visit2_month, Chemical) %>%  
+  summarise(
+    mean_log = mean(log(Concentration), na.rm = TRUE), 
+    se_log   = sd(log(Concentration), na.rm = TRUE) / sqrt(n()),
+    geo_mean = exp(mean_log),
+    lower_ci = exp(mean_log - 1.96 * se_log),
+    upper_ci = exp(mean_log + 1.96 * se_log)) %>%
+  ungroup() %>%
+  drop_na(visit2_month) 
+
+line_plot$visit2_month <- factor(line_plot$visit2_month, levels = c("12", "1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11"))
+
+# plot
+pah <- ggplot(line_plot, aes(x = visit2_month, y = geo_mean, group = Chemical)) +
+     annotate("rect", xmin = -Inf, xmax = 4, ymin = -Inf, ymax = Inf, 
+           fill = "lightblue2", alpha = 0.3) +  
+     annotate("rect", xmin = 4, xmax = 7, ymin = -Inf, ymax = Inf, 
+           fill = "palegreen2", alpha = 0.3) +  
+     annotate("rect", xmin = 7, xmax = 10, ymin = -Inf, ymax = Inf, 
+           fill = "pink1", alpha = 0.3) +  
+     annotate("rect", xmin = 10, xmax = Inf, ymin = -Inf, ymax = Inf, 
+           fill = "chocolate3", alpha = 0.3) + 
+          geom_ribbon(aes(ymin = geo_mean - lower_ci, ymax = geo_mean + upper_ci), fill = "grey70", alpha = 1) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5) + 
+  labs(x = "Month of sample collecton") +
+  ggtitle("∑ Polycyclic aromatic Hhydrocarbons") + 
+  theme(text = element_text(family = "Optima", color = "grey10"),
+        legend.position = "none", 
+       strip.text = element_text(size = 15, color = "grey20"),
+       axis.title.y = element_blank()) +
+   scale_x_discrete(
+    labels = c("12" = "", "1" = "Winter", "2" = "",  
+               "3" = "", "4" = "Spring", "5" = "",  
+               "6" = "", "7" = "Summer", "8" = "",   
+               "9" = "", "10" = "Fall", "11" = "")) 
+
+# arrange 
+figs2<-plot_grid(lmw, hmw, dehp, dinp, dinch, dphp, organo, pyth, para, benzo, bisp, halo, ins, bac, fung, pah, 
+          nrow = 4, align = "v", scale = 0.95)
+
+
+
+
+
+```
+
+## Latent profile analysis {.tabset}
+
+
+### Table S4
+
+Model parameters for the selection of a 2-profile solution in latent profile analysis.
+```{r  class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Compare model types and profiles 
+
+# set seed
+set.seed(142)
+
+# compare solutions
+table_s4 <- novel %>% dplyr::select( 
+  Sum_LMW_sg_log, 
+  Sum_HMW_sg_log,
+  sum_DINCH_sg_log,
+  Sum_OrganophosphorusFRs_sg_log,
+  Sum_Pyrethroids_sg_log, 
+  Sum_Parabens_sg_log, 
+  Sum_Benzophenones_sg_log, 
+  Sum_Bisphenols_sg_log,
+  Sum_HalogenatedPhenols_sg_log, 
+  Sum_OtherInsecticides_sg_log, 
+  Sum_Bactericides_sg_log,
+  Sum_FungicidesHerbicides_sg_log,
+  Sum_PAHs_sg_log) %>%
+  scale() %>%
+  estimate_profiles(1:5, models = 2) 
+
+table_s4 
+```
+
+### 2 profile model
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Model 2, 2 classes
+lpa <- novel %>% dplyr::select( 
+  Sum_LMW_sg_log, 
+  Sum_HMW_sg_log,
+  sum_DINCH_sg_log,
+  Sum_OrganophosphorusFRs_sg_log,
+  Sum_Pyrethroids_sg_log, 
+  Sum_Parabens_sg_log, 
+  Sum_Benzophenones_sg_log, 
+  Sum_Bisphenols_sg_log,
+  Sum_HalogenatedPhenols_sg_log, 
+  Sum_OtherInsecticides_sg_log, 
+  Sum_Bactericides_sg_log,
+  Sum_FungicidesHerbicides_sg_log,
+  Sum_PAHs_sg_log) %>%
+  scale() %>%
+  estimate_profiles(2, models = 2) 
+```
+
+### Figure S3
+
+Heatmap showing average concentration of natural log transformed, individual analytes (ng/mL) and molar sums (µM) of contemporary and emerging chemicals across estimated latent profiles among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168). Exposure values were scaled to have a mean of 0 and standard deviation of 1. 
+
+Note: The phthalate subgroups ∑ Di(2-ethylhexyl) phthalate metabolites (DEHP), mono(carboxyisocty) phthalate (MCIOP, Diisononyl phthalate metabolites (DINP)), ∑ Di(2-propylheptyl) phthalate metabolites (DPHP), ∑ 1,2 Cyclohexane dicarboxylic acid diisononyl esters (DINCH) were not included in latent profile analysis. 
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE,fig.width = 20, fig.height=15, fig.align='center'}
+#### Compare profile means
+
+# pull data for heat map 
+profile_means <- get_estimates(lpa) %>% 
+  filter(Category == "Means") %>% 
+  dplyr::select(Parameter, Class, Estimate) %>%
+  spread(Class, Estimate)
+
+# boxplot to view profile separation 
+# lpa %>% plot_profiles(rawdata = FALSE)
+
+# heat map
+profile_means_melt <- melt(profile_means, id.vars = "Parameter")
+profile_means_melt$Parameter <- factor(profile_means_melt$Parameter, 
+                              levels = rev(c("Sum_LMW_sg_log","Sum_HMW_sg_log", "sum_DEHP_sg_log","sum_DINCH_sg_log", "sum_DINP_sg_log", "sum_DPHP_P_sg_log", "Sum_OrganophosphorusFRs_sg_log","Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log","Sum_Bactericides_sg_log","Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log"))) 
+
+ggplot(profile_means_melt, aes(x = variable, y = Parameter, fill = value)) +
+  geom_tile(color = "white", lwd = 1.5) +
+  scale_fill_gradient2(low = "dodgerblue4", high = "firebrick", mid = "white", midpoint = 0) +
+  labs(x = "Latent Profile
+  
+       Average Concentration", y = "Analyte Group", fill = "Average Concentration") + 
+ scale_y_discrete(labels = chemical_sum_log_label_lpa) + 
+  theme( text = element_text(family = "Optima", color = "grey10"),
+         axis.text.y = element_text(size = 40),
+        axis.text.x = element_text(size = 40),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(size = 40),
+        legend.text = element_text(size = 40)) + 
+  guides(fill = guide_colourbar(barwidth = 50,
+                                barheight = 5),
+                 legend.key.size = unit(6, "cm"))
+```
+
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width= 15, fig.height= 12}
+#### Bind profiles to main dataset
+
+# assign profiles to dataset 
+lpa <- get_data(lpa)
+
+
+# correct data types
+lpa$Class <- as.factor(lpa$Class)
+
+# dummy code, class 1 is ref
+lpa  <- lpa %>% mutate(
+  class_2 = ifelse(Class == 2, 1, 0))
+
+lpa$class_2 <- as.factor(lpa$class_2)
+
+# merge to main dataset
+lpa <-  lpa %>% dplyr::select(Class, class_2)
+lpa <- cbind(novel, lpa)
+```
+
+### Table S8 
+
+Distribution of demographic characteristics across latent profiles. 
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Distribution of covariates, predictors by latent profile 
+
+## Class 1
+
+# filter
+lpa_class1 <- lpa %>% filter(Class == 1)
+# run
+table_s8a <- dist_table_demo(df = lpa_class1)
+
+# Class 2
+# filter
+lpa_class2 <- lpa %>% filter(Class == 2)
+# run
+table_s8b <- dist_table_demo(df = lpa_class2)
+
+# merge 
+tbl_merge(tbls = list(table_s8a, table_s8b), tab_spanner = c("Low", "Moderate"))
+```
+
+## Regression: Log-binomial logistic regression 
+
+```{r  class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Temporal predictors
+
+# spring  
+# fit model
+model <- logbin(class_2 ~ summer, method = "glm", data = lpa)
+# format
+summer <- tidy(model, conf.int = TRUE) %>%
+      filter(term ==  "summer1") %>%
+      mutate(N = nobs(model)) %>% 
+  mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+     dplyr::select(term, N, estimate, conf.low, conf.high)
+
+# fall  
+model <- logbin(class_2 ~ fall, method = "glm", data = lpa)
+fall <- tidy(model, conf.int = TRUE) %>%
+      filter(term ==  "fall1") %>%
+      mutate(N = nobs(model)) %>% 
+  mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+     dplyr::select(term, N, estimate, conf.low, conf.high)
+
+
+# 2017  
+model <- logbin(class_2 ~ year_2017, method = "glm", data = lpa)
+year_2017 <- tidy(model, conf.int = TRUE) %>%
+      filter(term ==  "year_20171") %>%
+      mutate(N = nobs(model)) %>% 
+  mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+     dplyr::select(term, N, estimate, conf.low, conf.high)
+
+
+# 2018  
+model <- logbin(class_2 ~ year_2018, method = "glm", data = lpa)
+year_2018 <- tidy(model, conf.int = TRUE) %>%
+      filter(term ==  "year_20181") %>%
+      mutate(N = nobs(model)) %>% 
+  mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+     dplyr::select(term, N, estimate, conf.low, conf.high)
+
+time_reg <- rbind(year_2017, year_2018, summer, fall)
+```
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Sociodemographic predictors
+
+# education 
+model <- logbin(class_2 ~ educ_nodegree, method = "glm", data = lpa)
+educ_demo <- tidy(model, conf.int = TRUE) %>%
+      filter(term ==  "educ_nodegree1") %>%
+      mutate(N = nobs(model)) %>% 
+  mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+     dplyr::select(term, N, estimate, conf.low, conf.high) 
+
+
+# public insurance
+model <- logbin(class_2 ~ public, method = "glm", data = lpa)
+
+public_demo<- tidy(model, conf.int = TRUE) %>%
+     filter(term %in%  c("public1")) %>%
+      mutate(N = nobs(model)) %>%
+    mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+    dplyr::select(term, N, estimate, conf.low, conf.high)
+
+
+# single
+model <- logbin(class_2 ~ single, method = "glm", data = lpa)
+single_demo <- tidy(model, conf.int = TRUE) %>%
+    filter(term %in%  c("single1")) %>%
+      mutate(N = nobs(model))  %>% 
+    mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+  dplyr::select(term, N, estimate, conf.low, conf.high)
+
+# bind results
+socio_reg <- rbind(single_demo, educ_demo, public_demo)
+```
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE}
+#### Home characteristics and behavior
+
+# home age
+model <- logbin(class_2 ~ sunscreen_use, method = "glm", data = lpa)
+sunscreen_use  <- tidy(model, conf.int = TRUE) %>%
+      filter(term ==  "sunscreen_use1") %>%
+      mutate(N = nobs(model)) %>% 
+  mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+     dplyr::select(term, N, estimate, conf.low, conf.high) 
+
+# home_type 
+model <- logbin(class_2 ~ you_clean_home, method = "glm", data = lpa)
+you_clean_home  <- tidy(model, conf.int = TRUE) %>%
+      filter(term ==  "you_clean_home1") %>%
+      mutate(N = nobs(model)) %>% 
+  mutate(across(c(estimate, conf.low, conf.high), exp)) %>%
+     dplyr::select(term, N, estimate, conf.low, conf.high) 
+
+home_reg <- rbind(sunscreen_use, you_clean_home)
+```
+
+### Table 2
+
+Risk ratios and 95% confidence intervals for the association between individual characteristics and profile membership, estimated using latent profile analysis and unadjusted log-binomial logistic regression, among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019. Reference group for all models is “low” exposure. 
+
+Note: Predictors with small sample sizes (i.e., <5) were not included, however predictors with small sample sizes (i.e., between 5-10) were not included if models did not converge.
+
+```{r class.output="scroll-400",  warning = FALSE, message = FALSE}
+#### Bind results: risk ratios  
+
+# bind results
+table_2 <- rbind(time_reg, socio_reg, home_reg)
+
+# table
+table_2 <- table_2 %>%
+  mutate_if(is.numeric, round, digits = 2) %>%
+  mutate(term = recode(term, 
+                      "year_20171" = "2017",
+                      "year_20181" = "2018",
+                      "summer1" = "Summer",
+                      "fall1" = "Fall",
+                     "single1" = "Marital status: single",
+                     "educ_nodegree1" = "Maternal education: < College degree",
+                     "public1" = "Insurance type: Medicaid",
+                     "sunscreen_use1" = "Sunscreen use",
+                     "you_clean_home1" = "Women cleans home")) %>%
+    mutate(outcome = "class_2",OR_CI = paste0(estimate, " (", conf.low, ", ", conf.high, ")")) %>%
+    select(outcome, N, term, OR_CI) %>%
+  pivot_wider(names_from = outcome, values_from = OR_CI) %>%
+  select(term, N, class_2) %>% 
+  flextable() %>%
+  theme_booktabs() %>%
+  add_body_row(values = c("","", "RR (95% CI)")) %>%
+  set_header_labels(class_2 = "High exposure to most chemcials", term = "") %>%
+  autofit()
+
+table_2 
+```
+
+## Regression: Linear regression {.tabset}
+
+### Regression
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width= 15, fig.height= 12}
+#### Temporal predictors
+
+# define outcomes, predictors
+outcomes <- c("Sum_LMW_sg_log", "Sum_HMW_sg_log","sum_DEHP_sg_log","sum_DINP_sg_log", "sum_DPHP_P_sg_log", "sum_DINCH_sg_log", "Sum_OrganophosphorusFRs_sg_log", "Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log", "Sum_Bactericides_sg_log", "Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log")
+predictors <- c("year_2017", "year_2018", "spring", "summer", "fall")
+
+# loop 
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+   formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j]))
+    model <- lm(formula = formula, data = novel)
+    n_obs <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(N = n_obs, outcome = outcomes[i] )
+  }
+}
+season_sums <- do.call(rbind, models) 
+
+# format 
+time_reg_sums <- season_sums %>% 
+  filter(term %in%c("year_20171", "year_20181" ,"spring1", "summer1", "fall1")) %>%
+  dplyr::select(outcome, term, N, estimate, conf.low, conf.high)
+```
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width= 15, fig.height= 12}
+##### Sociodemographics
+
+# education
+
+outcomes <- c("Sum_LMW_sg_log", "Sum_HMW_sg_log","sum_DEHP_sg_log","sum_DINP_sg_log", "sum_DPHP_P_sg_log", "sum_DINCH_sg_log", "Sum_OrganophosphorusFRs_sg_log", "Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log", "Sum_Bactericides_sg_log", "Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log")
+predictors <-  c("educ_nodegree", "public", "home_old", "apartment", "single_family_home", "single")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+   formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j]))
+    model <- lm(formula = formula, data = novel)
+    n_obs <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(N = n_obs, outcome = outcomes[i])
+  }
+}
+socio_reg_sums <- do.call(rbind, models) 
+
+socio_reg_sums <- socio_reg_sums %>% 
+  filter(term %in% c("educ_nodegree1", "public1", "home_old1", "apartment1", "single_family_home1", "single1")) %>%
+  dplyr::select(outcome, term, N, estimate, conf.low, conf.high)
+
+```
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width= 15, fig.height= 12}
+#### Home behavior
+
+outcomes <- c("Sum_LMW_sg_log", "Sum_HMW_sg_log","sum_DEHP_sg_log","sum_DINP_sg_log", "sum_DPHP_P_sg_log", "sum_DINCH_sg_log", "Sum_OrganophosphorusFRs_sg_log", "Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log", "Sum_Bactericides_sg_log", "Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log")
+predictors <- c("pesticide_use", "cosmetic_use", "sunscreen_use", "you_clean_home")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+   formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j]))
+    model <- lm(formula = formula, data = novel)
+    n_obs <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(N = n_obs, outcome = outcomes[i])
+  }
+}
+home_reg_sums <- do.call(rbind, models) 
+
+home_reg_sums <- home_reg_sums %>% 
+  filter(term %in% c("pesticide_use1", "cosmetic_use1", "sunscreen_use1", "you_clean_home1")) %>%
+  dplyr::select(outcome, term, N, estimate, conf.low, conf.high) 
+```
+
+### Table S7 
+
+Beta estimates and 95% confidence intervals (CIs) for the association between natural log transformed, individual analytes (ng/mL) and molar sums (µM) of contemporary and emerging chemicals, estimated using unadjusted linear regression, among pregnant women in the Atlanta Maternal Child Cohort in Atlanta, Georgia from 2016-2019 (N=168) for temporal predictors. Significant associations are indicated by an *.  
+
+```{r class.output="scroll-400",  warning = FALSE, message = FALSE}
+### Regression results
+
+# table
+table_s7 <- time_reg_sums %>%
+  mutate_if(is.numeric, round, digits = 2) %>%
+  mutate(outcome = chemical_sum_log_label[outcome]) %>%
+  mutate(term = recode(term, 
+                    "spring1" = "Spring",
+                    "summer1" = "Summer",
+                    "fall1" = "Fall",
+                    "year_20171" = "2017",
+                    "year_20181" = "2018")) %>%
+    mutate(Beta_CI = paste0(estimate, " (", conf.low, ", ", conf.high, ")")) %>%
+    select(outcome, term,  Beta_CI) %>%
+  pivot_wider(names_from = term, values_from = Beta_CI) %>%
+  flextable() %>%
+  theme_booktabs() %>%
+  add_body_row(values = c("", "β (95% CI)", "β (95% CI)", "β (95% CI)", "β (95% CI)", "β (95% CI)")) %>%
+  set_header_labels(class_2 = "High exposure to most chemcials", term = "", outcome = "Chemical group") %>%
+  autofit() 
+
+table_s7
+```
+
+### Table S9
+
+Beta estimates and 95% confidence intervals for the association between natural log transformed, individual analytes (ng/mL) and molar sums (µM) of contemporary and emerging chemicals, estimated using unadjusted linear regression, among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168) for home characteristic predictors. Significant associations are indicated by an *. 
+ 
+```{r class.output="scroll-400",  warning = FALSE, message = FALSE}
+#### Regression results
+
+# table
+table_s9 <- socio_reg_sums %>%
+  filter(term %in% c("single1", "educ_nodegree1", "public1")) %>%
+  mutate_if(is.numeric, round, digits = 2) %>%
+  mutate(outcome = chemical_sum_log_label[outcome]) %>%
+  mutate(term = recode(term, 
+                     "single1" = "Marital status: Single",
+                     "educ_nodegree1" = "Maternal education: < College degree",
+                     "public1" = "Insurance type: Medicaid")) %>%
+    mutate(Beta_CI = paste0(estimate, " (", conf.low, ", ", conf.high, ")")) %>%
+    select(outcome, term,  Beta_CI) %>%
+  pivot_wider(names_from = term, values_from = Beta_CI) %>%
+  flextable() %>%
+  theme_booktabs() %>%
+  add_body_row(values = c("", "β (95% CI)", "β (95% CI)", "β (95% CI)")) %>%
+  set_header_labels(class_2 = "High exposure to most chemcials", term = "", outcome = "Chemical group") %>%
+  autofit() 
+
+table_s9
+```
+
+### Table S10
+
+Beta estimates and 95% confidence intervals for the association between natural log transformed, individual analytes (ng/mL) and molar sums (µM) of understudied chemicals of concern, estimated using unadjusted linear regression, among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=168) for home characteristic predictors. Significant associations are indicated by an *. 
+
+```{r}
+#### Regression results
+
+# table
+table_s10 <- socio_reg_sums %>%
+  filter(term %in% c("home_old1", "apartment1", "single_family_home1")) %>%
+  mutate_if(is.numeric, round, digits = 2) %>%
+  mutate(outcome = chemical_sum_log_label[outcome]) %>%
+  mutate(term = recode(term, 
+                     "home_old1" = "Home age : ≥ 10 years old",
+                     "apartment1" = "Home type: Apartment",
+                     "single_family_home1" = "Home type: Single-family home")) %>%
+    mutate(Beta_CI = paste0(estimate, " (", conf.low, ", ", conf.high, ")")) %>%
+    select(outcome, term,  Beta_CI) %>%
+  pivot_wider(names_from = term, values_from = Beta_CI) %>%
+  flextable() %>%
+  theme_booktabs() %>%
+  add_body_row(values = c("", "β (95% CI)", "β (95% CI)", "β (95% CI)")) %>%
+  set_header_labels(class_2 = "High exposure to most chemcials", term = "", outcome = "Chemical group") %>%
+  autofit() 
+
+table_s10
+```
+         
+### Table S11
+
+Beta estimates and 95% confidence intervals for the association between natural log transformed, individual analytes (ng/mL) and molar sums (µmoles/L) of contemporary and emerging chemicals, estimated using unadjusted linear regression, among pregnant women in the Atlanta Maternal Child Cohort from 2016-2019 (N=122) for home behavior predictors. Significant associations are indicated by an *. 
+
+```{r class.output="scroll-400",  warning = FALSE, message = FALSE}
+#### Regression results
+
+# table
+table_s11 <- home_reg_sums %>%
+  mutate_if(is.numeric, round, digits = 2) %>%
+  mutate(outcome = chemical_sum_log_label[outcome]) %>%
+  mutate(term = recode(term, 
+                     "pesticide_use1" = "Pesticide use: yes",
+                     "cosmetic_use1" = "Cosmetic use: yes",
+                    "sunscreen_use1" = "Suncreen use:yes",
+                    "you_clean_home1"= "Women cleans home: yes")) %>%
+    mutate(Beta_CI = paste0(estimate, " (", conf.low, ", ", conf.high, ")")) %>%
+    select(outcome, N, term,  Beta_CI) %>%
+  pivot_wider(names_from = term, values_from = Beta_CI) %>%
+  flextable() %>%
+  theme_booktabs() %>%
+  add_body_row(values = c("", "β (95% CI)", "β (95% CI)", "β (95% CI)", "β (95% CI)")) %>%
+  set_header_labels(class_2 = "High exposure to most chemcials", term = "", outcome = "Chemical group") %>%
+  
+  autofit()
+
+table_s11
+```
+
+### Figure 4 
+
+Beta estimates and 95% confidence intervals (CIs) for the association between natural log transformed, individual analytes (ng/mL) and molar sums (µM) of understudied chemicals of concern with temporal, sociodemographic, home characteristic, and behavior predictors, estimated using unadjusted linear regression, among pregnant women in the Atlanta Maternal Child Cohort in Atlanta, Georgia from 2016-2019 (N=168). Significant estimates are outlined in black.
+
+Note: Five chemicals were the only well detected analyte in their chemical group, and as such are presented individually. This includes the pentachlorophenol (halogenated phenol), 2,4-dichlorophenoxtace (fungicide and herbicide), bisphenol S (bisphenol), 3,5,6-trichloro-pyridinol (insecticide), and mono (carboxyisoctyl) phthalate (di-2-ethylhexyl metabolites (diisononyl phthalate metabolites (DINP)).
+
+```{r class.output="scroll-400", warning = FALSE, message = FALSE, fig.width=20, fig.height= 15, fig.align='center'}
+#### Heatmap: Linear regression estimates
+# format
+reg_all <- bind_rows(time_reg_sums, socio_reg_sums, home_reg_sums) %>%
+  mutate_if(is.numeric, round, digits = 2) %>%
+   mutate(significance = if_else((conf.low > 0 & conf.high > 0) | (conf.low < 0 & conf.high < 0),
+                                "Significant", "Not Significant")) %>%
+  select(outcome, term, significance, estimate, conf.low, conf.high)
+
+# factor
+reg_all$outcome <- factor(reg_all$outcome, levels = rev(c("Sum_LMW_sg_log", "Sum_HMW_sg_log","sum_DEHP_sg_log","sum_DINP_sg_log", "sum_DPHP_P_sg_log", "sum_DINCH_sg_log", "Sum_OrganophosphorusFRs_sg_log", "Sum_Pyrethroids_sg_log", "Sum_Parabens_sg_log", "Sum_Benzophenones_sg_log", "Sum_Bisphenols_sg_log", "Sum_HalogenatedPhenols_sg_log", "Sum_OtherInsecticides_sg_log", "Sum_Bactericides_sg_log", "Sum_FungicidesHerbicides_sg_log", "Sum_PAHs_sg_log")))
+
+reg_all$term <- factor(reg_all$term, levels = c("year_20171", "year_20181",  "spring1", "summer1", "fall1", "single1", "educ_nodegree1", "public1", "home_old1", "single_family_home1", "apartment1", "pesticide_use1", "cosmetic_use1", "sunscreen_use1", "you_clean_home1"))
+
+# plot
+ggplot(reg_all, aes(term, outcome, fill = estimate)) +
+  geom_tile(color = "white") +
+  geom_tile(data = subset(reg_all, significance == "Significant"),
+            color = "black", lwd = 1.5, size = 1.2, fill = NA) +
+  geom_text(aes(label = estimate), size = 6) +
+  scale_fill_distiller(palette = "RdBu") +
+  scale_y_discrete(label = chemical_sum_log_label) +
+  scale_x_discrete(label = demo_label) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.key.size = unit(1.5, "cm"))
+```
