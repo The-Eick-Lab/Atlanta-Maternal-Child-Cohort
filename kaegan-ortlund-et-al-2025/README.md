@@ -1,4 +1,4 @@
-**Title:** Characterizing prenatal exposure to contemporary and emerging chemicals in a prospective cohort of pregnant women in Atlanta, Georgia 
+**Title:** *Characterizing prenatal exposure to contemporary and emerging chemicals in a prospective cohort of pregnant women in Atlanta, Georgia* 
 
 
 **Abstract**
