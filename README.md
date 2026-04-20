@@ -1,1 +1,1 @@
-Projects relating to child behavior and neurodevelopment.
+Projects using data from the Atlanta Maternal-Child Cohort 
